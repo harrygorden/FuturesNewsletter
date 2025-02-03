@@ -1,0 +1,18 @@
+allow_embedding: false
+dependencies:
+- config: {}
+  dep_id: dep_lin1x4oec0ytd
+  resolution_hints: {app_id: 4UK6WHQ6UX7AKELK, name: Material 3 Theme, package_name: m3}
+  version: {version_tag: v1.2.1}
+name: M3 App 1
+native_deps: null
+package_name: M3_App_1
+runtime_options:
+  client_version: '3'
+  server_spec: {base: python310-minimal}
+  server_version: python3-full
+  version: 3
+services:
+- client_config: {}
+  server_config: {}
+  source: /runtime/services/tables.yml
