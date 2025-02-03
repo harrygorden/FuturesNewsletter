@@ -51,25 +51,41 @@ def process_newsletter():
     try:
         # Start the newsletter retrieval background task
         from . import GetNewsletter
-        retrieval_task = GetNewsletter.start_newsletter_retrieval()
+        task = GetNewsletter.start_newsletter_retrieval()
         
-        # Wait for the newsletter retrieval to complete
-        newsletter_content = retrieval_task.get_result()
-        
-        print("Newsletter retrieved successfully")
-        
-        # TODO: Add calls to AnalyzeNewsletter and SendAnalysis modules
-        # This will be implemented in subsequent steps
-        
-        return {
-            'status': 'success',
-            'message': 'Newsletter retrieved successfully',
-            'data': {
-                'subject': newsletter_content['subject'],
-                'date': newsletter_content['date']
+        try:
+            # Wait for task completion and get result
+            result = task.get_return_value()
+            
+            if result is None:
+                return {
+                    'status': 'error',
+                    'message': 'Newsletter retrieval returned no content'
+                }
+                    
+            print("Newsletter retrieved successfully")
+            print(f"Retrieved newsletter: {result['subject']}")
+                
+            # TODO: Add calls to AnalyzeNewsletter and SendAnalysis modules
+            # This will be implemented in subsequent steps
+                
+            return {
+                'status': 'success',
+                'message': 'Newsletter retrieved successfully',
+                'data': {
+                    'subject': result['subject'],
+                    'date': result['date']
+                }
             }
-        }
-        
+                
+        except anvil.server.BackgroundTaskError as bte:
+            error_msg = str(bte)
+            print(f"Background task error: {error_msg}")
+            return {
+                'status': 'error',
+                'message': f'Background task error: {error_msg}'
+            }
+            
     except Exception as e:
         print(f"Error in newsletter processing workflow: {str(e)}")
         return {

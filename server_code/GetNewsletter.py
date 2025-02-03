@@ -6,6 +6,12 @@ import anvil.users
 import anvil.tables
 from anvil.tables import app_tables
 import datetime
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+import base64
+from email.mime.text import MIMEText
 
 # This is a server module. It runs on the Anvil server,
 # rather than in the user's browser.
@@ -37,6 +43,33 @@ import datetime
 # - google_refresh_token: For Gmail API authentication
 # - newsletter_sender_email: Email address to identify the newsletter
 
+def get_gmail_service():
+    """
+    Creates and returns an authenticated Gmail service using our OAuth credentials.
+    Similar to the non-Anvil version but using Anvil secrets instead of local files.
+    """
+    try:
+        # Create credentials from our Anvil secrets
+        creds = Credentials(
+            token=None,
+            refresh_token=anvil.secrets.get_secret('google_refresh_token'),
+            client_id=anvil.secrets.get_secret('google_client_id'),
+            client_secret=anvil.secrets.get_secret('google_client_secret'),
+            token_uri='https://oauth2.googleapis.com/token',
+            scopes=['https://www.googleapis.com/auth/gmail.readonly', 
+                   'https://www.googleapis.com/auth/gmail.send']
+        )
+        
+        # Refresh the credentials
+        creds.refresh(Request())
+        
+        # Return the Gmail service
+        return build('gmail', 'v1', credentials=creds)
+        
+    except Exception as e:
+        print(f"Error creating Gmail service: {str(e)}")
+        raise
+
 @anvil.server.background_task
 def get_latest_newsletter():
     """
@@ -46,38 +79,76 @@ def get_latest_newsletter():
     Returns:
         dict: Contains 'subject' and 'body' of the newsletter email
     """
-    print("Starting newsletter retrieval process")
-    
     try:
+        print("Starting newsletter retrieval process")
+        
         # Get the sender email from secrets
         sender_email = anvil.secrets.get_secret('newsletter_sender_email')
         print(f"Looking for emails from: {sender_email}")
         
-        # Get the most recent email from the specified sender
-        # inbox() returns messages in reverse chronological order (newest first)
-        messages = anvil.google.mail.inbox(from_address=sender_email, max_results=1)
+        # Get Gmail service
+        service = get_gmail_service()
+        
+        # Search for the most recent email from the sender
+        query = f"from:{sender_email}"
+        results = service.users().messages().list(
+            userId='me',
+            q=query,
+            maxResults=1
+        ).execute()
+        
+        messages = results.get('messages', [])
         
         if not messages:
             print("No emails found from the specified sender")
-            raise Exception("No newsletter emails found")
+            return None
         
-        # Get the most recent email
-        latest_email = messages[0]
-        print(f"Found email with subject: {latest_email.subject}")
+        # Get the full email content
+        msg = service.users().messages().get(
+            userId='me',
+            id=messages[0]['id'],
+            format='full'
+        ).execute()
         
-        # Extract the email content
+        # Extract headers
+        headers = msg['payload']['headers']
+        subject = next(h['value'] for h in headers if h['name'].lower() == 'subject')
+        date = next(h['value'] for h in headers if h['name'].lower() == 'date')
+        
+        # Extract body - following the pattern from the working example
+        body = None
+        if 'parts' in msg['payload']:
+            # Handle multipart messages
+            for part in msg['payload']['parts']:
+                if part['mimeType'] in ['text/plain', 'text/html']:
+                    if 'data' in part['body']:
+                        body = base64.urlsafe_b64decode(
+                            part['body']['data'].encode('UTF-8')
+                        ).decode('UTF-8')
+                        break
+        elif 'body' in msg['payload']:
+            # Handle plain text messages
+            body = base64.urlsafe_b64decode(
+                msg['payload']['body']['data'].encode('UTF-8')
+            ).decode('UTF-8')
+        
+        if body is None:
+            print("Could not extract email body")
+            return None
+            
         newsletter_content = {
-            'subject': latest_email.subject,
-            'body': latest_email.html if latest_email.html else latest_email.text,
-            'date': latest_email.date
+            'subject': subject,
+            'body': body,
+            'date': date
         }
         
+        print(f"Found email with subject: {subject}")
         print("Newsletter content successfully extracted")
         return newsletter_content
         
     except Exception as e:
         print(f"Error retrieving newsletter: {str(e)}")
-        raise
+        raise  # Re-raise the exception to properly signal task failure
 
 @anvil.server.callable
 def start_newsletter_retrieval():
@@ -89,4 +160,4 @@ def start_newsletter_retrieval():
         background_task: The background task object for tracking progress
     """
     print("Initiating newsletter retrieval background task")
-    return anvil.server.launch_background_task('get_latest_newsletter')
+    return anvil.server.launch_background_task("get_latest_newsletter")
