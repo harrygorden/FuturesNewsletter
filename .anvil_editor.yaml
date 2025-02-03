@@ -1,7 +1,12 @@
 unique_ids:
   assets:
     theme.css: 6G44GIEQQRJLILWU6GQSQO5BTDFT5ZI3
-  forms: {}
+  forms:
+    Form1: '1738557630378184730875726.38147'
   modules: {}
   scripts: {}
-  server_modules: {}
+  server_modules:
+    AnalyzeNewsletter: '1738557681332391280391157.0231'
+    GetNewsletter: '1738557668062185510439409.87323'
+    Main: '1738557641074287867705686.7307'
+    SendAnalysis: '1738557692051335083331320.75775'
