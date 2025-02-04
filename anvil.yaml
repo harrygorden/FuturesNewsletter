@@ -1,4 +1,35 @@
 allow_embedding: false
+db_schema:
+  newsletteranalysis:
+    client: none
+    columns:
+    - admin_ui: {order: 0, width: 200}
+      name: timestamp
+      type: datetime
+    - admin_ui: {order: 1, width: 200}
+      name: newsletteranalysis
+      type: simpleObject
+    server: full
+    title: NewsletterAnalysis
+  newsletters:
+    client: none
+    columns:
+    - admin_ui: {order: 0, width: 200}
+      name: timestamp
+      type: datetime
+    - admin_ui: {order: 1, width: 200}
+      name: newsletter
+      type: simpleObject
+    server: full
+    title: Newsletters
+  users:
+    client: none
+    columns:
+    - admin_ui: {order: 0, width: 200}
+      name: Users
+      type: string
+    server: full
+    title: Users
 dependencies:
 - config: {}
   dep_id: dep_lin1x4oec0ytd
