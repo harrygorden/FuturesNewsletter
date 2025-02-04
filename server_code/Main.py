@@ -49,42 +49,28 @@ def process_newsletter():
     print("Starting newsletter processing workflow")
     
     try:
-        # Start the newsletter retrieval background task
+        # For debugging, call get_latest_newsletter synchronously
         from . import GetNewsletter
-        task = GetNewsletter.start_newsletter_retrieval()
+        result = GetNewsletter._get_latest_newsletter()
+        print("DEBUG: result (type: {}): {}".format(type(result), result))
         
-        try:
-            # Wait for task completion and get result
-            result = task.get_return_value()
-            
-            if result is None:
-                return {
-                    'status': 'error',
-                    'message': 'Newsletter retrieval returned no content'
-                }
-                    
-            print("Newsletter retrieved successfully")
-            print(f"Retrieved newsletter: {result['subject']}")
-                
-            # TODO: Add calls to AnalyzeNewsletter and SendAnalysis modules
-            # This will be implemented in subsequent steps
-                
-            return {
-                'status': 'success',
-                'message': 'Newsletter retrieved successfully',
-                'data': {
-                    'subject': result['subject'],
-                    'date': result['date']
-                }
-            }
-                
-        except anvil.server.BackgroundTaskError as bte:
-            error_msg = str(bte)
-            print(f"Background task error: {error_msg}")
+        if result is None:
             return {
                 'status': 'error',
-                'message': f'Background task error: {error_msg}'
+                'message': 'Newsletter retrieval returned no content'
             }
+                    
+        print("Newsletter retrieved successfully")
+        print(f"Retrieved newsletter: {result}")
+                
+        # TODO: Add calls to AnalyzeNewsletter and SendAnalysis modules
+        # This will be implemented in subsequent steps
+                
+        return {
+            'status': 'success',
+            'message': 'Newsletter retrieved successfully',
+            'data': result
+        }
             
     except Exception as e:
         print(f"Error in newsletter processing workflow: {str(e)}")

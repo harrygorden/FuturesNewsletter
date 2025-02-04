@@ -12,6 +12,7 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 import base64
 from email.mime.text import MIMEText
+import json
 
 # This is a server module. It runs on the Anvil server,
 # rather than in the user's browser.
@@ -43,6 +44,17 @@ from email.mime.text import MIMEText
 # - google_refresh_token: For Gmail API authentication
 # - newsletter_sender_email: Email address to identify the newsletter
 
+def find_body(payload):
+    """Recursively search the payload for a body with data."""
+    if 'body' in payload and 'data' in payload['body']:
+        return base64.urlsafe_b64decode(payload['body']['data'].encode('UTF-8')).decode('UTF-8')
+    if 'parts' in payload:
+        for part in payload['parts']:
+            result = find_body(part)
+            if result:
+                return result
+    return None
+
 def get_gmail_service():
     """
     Creates and returns an authenticated Gmail service using our OAuth credentials.
@@ -70,25 +82,15 @@ def get_gmail_service():
         print(f"Error creating Gmail service: {str(e)}")
         raise
 
-@anvil.server.background_task
-def get_latest_newsletter():
-    """
-    Retrieves the most recent newsletter email from the specified sender.
-    Runs as a background task and logs all operations.
-    
-    Returns:
-        dict: Contains 'subject' and 'body' of the newsletter email
-    """
+def _get_latest_newsletter():
+    """Synchronous helper function to retrieve the newsletter."""
     try:
         print("Starting newsletter retrieval process")
-        
-        # Get the sender email from secrets
         sender_email = anvil.secrets.get_secret('newsletter_sender_email')
         print(f"Looking for emails from: {sender_email}")
-        
-        # Get Gmail service
+
         service = get_gmail_service()
-        
+
         # Search for the most recent email from the sender
         query = f"from:{sender_email}"
         results = service.users().messages().list(
@@ -96,59 +98,49 @@ def get_latest_newsletter():
             q=query,
             maxResults=1
         ).execute()
-        
+
         messages = results.get('messages', [])
-        
+
         if not messages:
             print("No emails found from the specified sender")
             return None
-        
+
         # Get the full email content
         msg = service.users().messages().get(
             userId='me',
             id=messages[0]['id'],
             format='full'
         ).execute()
-        
+
         # Extract headers
         headers = msg['payload']['headers']
         subject = next(h['value'] for h in headers if h['name'].lower() == 'subject')
         date = next(h['value'] for h in headers if h['name'].lower() == 'date')
-        
-        # Extract body - following the pattern from the working example
-        body = None
-        if 'parts' in msg['payload']:
-            # Handle multipart messages
-            for part in msg['payload']['parts']:
-                if part['mimeType'] in ['text/plain', 'text/html']:
-                    if 'data' in part['body']:
-                        body = base64.urlsafe_b64decode(
-                            part['body']['data'].encode('UTF-8')
-                        ).decode('UTF-8')
-                        break
-        elif 'body' in msg['payload']:
-            # Handle plain text messages
-            body = base64.urlsafe_b64decode(
-                msg['payload']['body']['data'].encode('UTF-8')
-            ).decode('UTF-8')
-        
+
+        # Extract body
+        body = find_body(msg['payload'])
+
         if body is None:
             print("Could not extract email body")
             return None
-            
+
         newsletter_content = {
             'subject': subject,
             'body': body,
             'date': date
         }
-        
+
+        print("Newsletter content being returned: " + json.dumps(newsletter_content))
         print(f"Found email with subject: {subject}")
         print("Newsletter content successfully extracted")
         return newsletter_content
-        
     except Exception as e:
-        print(f"Error retrieving newsletter: {str(e)}")
-        raise  # Re-raise the exception to properly signal task failure
+        print("Error retrieving newsletter: " + str(e))
+        raise
+
+@anvil.server.background_task
+def get_latest_newsletter():
+    return _get_latest_newsletter()
 
 @anvil.server.callable
 def start_newsletter_retrieval():
