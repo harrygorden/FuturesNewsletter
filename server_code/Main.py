@@ -52,27 +52,12 @@ def process_newsletter():
     print("Starting newsletter processing workflow")
     
     try:
-        # For debugging, call get_latest_newsletter synchronously
         from . import GetNewsletter
-        result = GetNewsletter._get_latest_newsletter()
-        print("DEBUG: result (type: {}): {}".format(type(result), result))
-        
-        if result is None:
-            return {
-                'status': 'error',
-                'message': 'Newsletter retrieval returned no content'
-            }
-                    
-        print("Newsletter retrieved successfully")
-        print(f"Retrieved newsletter: {result}")
-                
-        # TODO: Add calls to AnalyzeNewsletter and SendAnalysis modules
-        # This will be implemented in subsequent steps
-                
+        print("Initiating newsletter retrieval background task which will also insert the newsletter into app_tables.newsletters")
+        GetNewsletter.start_newsletter_retrieval()  # Launch the background task without waiting
         return {
             'status': 'success',
-            'message': 'Newsletter retrieved successfully',
-            'data': result
+            'message': "Newsletter retrieval initiated. Check background task logs and app_tables.newsletters for inserted data."
         }
             
     except Exception as e:

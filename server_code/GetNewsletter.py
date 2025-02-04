@@ -7,7 +7,6 @@ import anvil.secrets
 import anvil.server
 import anvil.users
 import anvil.tables
-from anvil.tables import app_tables
 import datetime
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -16,6 +15,7 @@ from googleapiclient.discovery import build
 import base64
 from email.mime.text import MIMEText
 import json
+from email.utils import parsedate_to_datetime
 
 # This is a server module. It runs on the Anvil server,
 # rather than in the user's browser.
@@ -133,7 +133,24 @@ def _get_latest_newsletter():
             'date': date
         }
 
-        print("Newsletter content being returned: " + json.dumps(newsletter_content))
+        # Check if the retrieved email is a duplicate based on the subject
+        latest_rows = list(app_tables.newsletters.search())
+        if latest_rows:
+            latest = sorted(latest_rows, key=lambda row: row['timestamp'], reverse=True)[0]
+            if latest['newslettersubject'] == subject:
+                print("Duplicate email. Latest email subject matches the retrieved email subject. Aborting retrieval.")
+                return None
+
+        try:
+            news_timestamp = parsedate_to_datetime(date)
+        except Exception as e:
+            print("Error parsing date, storing raw date string:", e)
+            news_timestamp = date
+        app_tables.newsletters.add_row(timestamp=news_timestamp,
+                                         newslettersubject=subject,
+                                         newsletterbody=body)
+        print("Newsletter row inserted into app_tables.newsletters")
+        print("Newsletter content being returned: ")
         print(f"Found email with subject: {subject}")
         print("Newsletter content successfully extracted")
         return newsletter_content
@@ -143,7 +160,15 @@ def _get_latest_newsletter():
 
 @anvil.server.background_task
 def get_latest_newsletter():
-    return _get_latest_newsletter()
+    while True:
+        result = _get_latest_newsletter()
+        if result is None:
+            print("No new newsletter found, stopping the background task.")
+            break
+        else:
+            print("New newsletter processed, refetching to check for any further updates...")
+            anvil.server.sleep(10)  # wait 10 seconds before checking again
+    return "Background task completed."
 
 @anvil.server.callable
 def start_newsletter_retrieval():

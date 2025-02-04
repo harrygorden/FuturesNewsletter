@@ -18,7 +18,10 @@ db_schema:
       name: timestamp
       type: datetime
     - admin_ui: {order: 1, width: 200}
-      name: newsletter
+      name: newsletterbody
+      type: simpleObject
+    - admin_ui: {order: 0.5, width: 200}
+      name: newslettersubject
       type: simpleObject
     server: full
     title: Newsletters
