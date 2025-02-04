@@ -66,3 +66,10 @@ def process_newsletter():
             'status': 'error',
             'message': str(e)
         }
+
+# Temporary test function for optimize_latest_newsletter
+@anvil.server.callable
+def test_optimize_newsletter():
+    """Temporary test function to directly call the optimize_latest_newsletter background task from the OptimizeNewsletter module."""
+    from . import OptimizeNewsletter
+    return OptimizeNewsletter.optimize_latest_newsletter()
