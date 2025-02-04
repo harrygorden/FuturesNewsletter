@@ -36,6 +36,8 @@ from spacy.tokens import Doc
 if not Doc.has_extension("support_resistance"):
     Doc.set_extension("support_resistance", default=[])
 
+# Register the custom pipeline component with a name using the decorator
+@spacy.Language.component("support_resistance_detector")
 def support_resistance_detector(doc):
     """Custom spaCy pipeline component to detect support/resistance levels."""
     pattern = r"(\d+\.\d+)\s*(?:support|resistance)"
@@ -43,8 +45,9 @@ def support_resistance_detector(doc):
     doc._.support_resistance = matches
     return doc
 
+# Add the custom component by its name instead of passing the function
 if "support_resistance_detector" not in nlp.pipe_names:
-    nlp.add_pipe(support_resistance_detector, last=True)
+    nlp.add_pipe("support_resistance_detector", last=True)
 
 def clean_text(text):
     """Cleans the text by removing URLs and timestamps."""
