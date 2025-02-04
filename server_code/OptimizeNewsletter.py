@@ -7,6 +7,7 @@ from anvil.tables import app_tables
 import anvil.server
 import spacy
 import re
+import datetime  # <--- Added datetime import for timestamp handling
 
 # This module is part of our newsletter processing pipeline.
 # It runs on the Anvil server and is responsible for optimizing the extracted newsletter text,
@@ -66,6 +67,19 @@ def segment_text(text):
     preserved_section = m.group(1) if m else ""
     return text_without_discard, preserved_section
 
+def format_preserved_levels(text):
+    """
+    Processes the preserved section to remove unwanted text and format level entries.
+    Specifically:
+    - It removes an introductory paragraph (if any) by only retaining lines that start with a digit.
+    - It splits the text into lines, trims whitespace, and rejoins them with newline breaks.
+    Returns the formatted levels string.
+    """
+    lines = text.splitlines()
+    # Retain only lines that begin with a digit (representing level entries)
+    formatted_lines = [line.strip() for line in lines if line.strip() and line.strip()[0].isdigit()]
+    return "\n".join(formatted_lines)
+
 def extract_key_levels(text):
     """Extracts key support/resistance levels using the custom spaCy pipeline."""
     doc = nlp(text)
@@ -100,6 +114,14 @@ def optimize_latest_newsletter():
         # Apply spaCy-based optimization
         cleaned_body = clean_text(body)
         text_without_discard, preserved_section = segment_text(cleaned_body)
+        formatted_levels = format_preserved_levels(preserved_section)
+        
+        # Write the formatted levels to the newsletteranalysis table
+        app_tables.newsletteranalysis.add_row(
+            originallevels=formatted_levels,
+            timestamp=datetime.datetime.now()  # You can also use datetime.datetime.utcnow() if preferred
+        )
+        
         key_levels = extract_key_levels(cleaned_body)
         trade_setups = identify_trade_setups(cleaned_body)
         risk_factors = calculate_risk_factors(cleaned_body)
