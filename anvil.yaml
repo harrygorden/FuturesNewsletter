@@ -11,6 +11,17 @@ db_schema:
       type: simpleObject
     server: full
     title: NewsletterAnalysis
+  newsletteroptimized:
+    client: none
+    columns:
+    - admin_ui: {order: 0, width: 200}
+      name: timestamp
+      type: datetime
+    - admin_ui: {order: 1, width: 200}
+      name: newsletteroptimized
+      type: simpleObject
+    server: full
+    title: NewsletterOptimized
   newsletters:
     client: none
     columns:
@@ -25,11 +36,6 @@ db_schema:
       type: simpleObject
     server: full
     title: Newsletters
-  table_4:
-    client: none
-    columns: []
-    server: full
-    title: Table 4
   users:
     client: none
     columns:
