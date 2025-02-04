@@ -80,6 +80,23 @@ def format_preserved_levels(text):
     formatted_lines = [line.strip() for line in lines if line.strip() and line.strip()[0].isdigit()]
     return "\n".join(formatted_lines)
 
+def format_keylevels_raw(text):
+    """
+    Processes the formatted levels string to extract only the numbers and ranges.
+    For each line, it retains only the text before the first colon.
+    Returns the processed raw levels as a string with one entry per line.
+    """
+    lines = text.splitlines()
+    raw_levels = []
+    for line in lines:
+        if ":" in line:
+            # Extract portion before the colon.
+            raw = line.split(":", 1)[0].strip()
+            raw_levels.append(raw)
+        else:
+            raw_levels.append(line.strip())
+    return "\n".join(raw_levels)
+
 def extract_key_levels(text):
     """Extracts key support/resistance levels using the custom spaCy pipeline."""
     doc = nlp(text)
@@ -115,11 +132,19 @@ def optimize_latest_newsletter():
         cleaned_body = clean_text(body)
         text_without_discard, preserved_section = segment_text(cleaned_body)
         formatted_levels = format_preserved_levels(preserved_section)
+        raw_levels = format_keylevels_raw(formatted_levels)
         
         # Write the formatted levels to the newsletteranalysis table
         app_tables.newsletteranalysis.add_row(
             originallevels=formatted_levels,
             timestamp=datetime.datetime.now()  # You can also use datetime.datetime.utcnow() if preferred
+        )
+        
+        # Also write the formatted levels and the raw numbers to the newsletteroptimized table
+        app_tables.newsletteroptimized.add_row(
+            keylevels=formatted_levels,
+            keylevelsraw=raw_levels,
+            timestamp=datetime.datetime.now()  # Optional: you can also use datetime.datetime.utcnow()
         )
         
         key_levels = extract_key_levels(cleaned_body)
