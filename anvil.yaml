@@ -12,6 +12,9 @@ db_schema:
     - admin_ui: {order: 2, width: 200}
       name: originallevels
       type: string
+    - admin_ui: {order: 3, width: 200}
+      name: tradeplan
+      type: string
     server: full
     title: NewsletterAnalysis
   newsletteroptimized:
