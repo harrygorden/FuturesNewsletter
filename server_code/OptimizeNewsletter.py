@@ -61,6 +61,9 @@ def segment_text(text):
     Discards content from 'The Run Down on The Level To Level Approach: What, Why, How' up to 'Core Structures/Levels To Engage',
     and extracts the section from 'Core Structures/Levels To Engage' to 'Trade Recap/Education'.
     """
+    # Normalize line endings
+    text = text.replace('\r\n', '\n')
+    
     text_without_discard = re.sub(r'The Run Down on The Level To Level Approach: What, Why, How.*?Core Structures/Levels To Engage',
                                   "Core Structures/Levels To Engage", text, flags=re.DOTALL)
     m = re.search(r'(Core Structures/Levels To Engage.*?Trade Recap/Education)', text_without_discard, flags=re.DOTALL)
@@ -224,6 +227,7 @@ def optimize_latest_newsletter():
             keylevels=formatted_levels,
             keylevelsraw=raw_levels,
             tradeplan=trade_plan_text,
+            optimized_content=text_without_discard,
             timestamp=datetime.datetime.now()
         )
         
