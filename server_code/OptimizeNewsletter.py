@@ -51,9 +51,16 @@ if "support_resistance_detector" not in nlp.pipe_names:
     nlp.add_pipe("support_resistance_detector", last=True)
 
 def clean_text(text):
-    """Cleans the text by removing URLs and timestamps."""
+    """Cleans the text by removing URLs, timestamps, and specific unwanted sections."""
     text = re.sub(r'https?://\S+', '', text)   # Remove URLs
     text = re.sub(r'\d{1,2}:\d{2}\s*[AP]M\s*[A-Z]{2,}', '', text)  # Remove timestamps
+    text = re.sub(r'View this post on the web at.*?\n', '', text)  # Remove "View this post" line
+    text = re.sub(r'\n\s*Unsubscribe\s*(?:\n|$)', '', text, flags=re.IGNORECASE)  # Remove "Unsubscribe" line and surrounding whitespace
+    text = re.sub(r'\*\*\*\*\*\*\*\*\*\*Important Housekeeping Notices\*\*\*\*\*\*\*\*.*?\*{10,}', '', text, flags=re.DOTALL)  # Remove housekeeping section
+    # Clean up empty lines
+    text = re.sub(r'^\s*\n', '', text)  # Remove leading empty lines
+    text = re.sub(r'\n\s*\n\s*\n', '\n\n', text)  # Replace multiple empty lines with a single empty line
+    text = text.strip()  # Remove leading/trailing whitespace
     return text
 
 def segment_text(text):
