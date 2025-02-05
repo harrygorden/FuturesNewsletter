@@ -164,9 +164,13 @@ def get_latest_newsletter():
     result = _get_latest_newsletter()
     if result is None:
         print("No new newsletter found.")
+        return "No new newsletter to process."
     else:
         print("Newsletter processed successfully.")
-    return "Background task completed."
+        # Chain the optimization task after successful retrieval
+        print("Launching optimization task...")
+        optimization_result = anvil.server.launch_background_task('optimize_latest_newsletter')
+        return "Newsletter retrieved and optimization task launched."
 
 @anvil.server.callable
 def start_newsletter_retrieval():

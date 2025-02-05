@@ -79,6 +79,13 @@ runtime_options:
   server_spec: {base: python310-standard}
   server_version: python3-full
   version: 3
+scheduled_tasks:
+- job_id: SPHNCEIN
+  task_name: process_newsletter
+  time_spec:
+    at: {hour: 23, minute: 0}
+    every: day
+    n: 1
 secrets:
   google_client_id:
     type: secret

@@ -58,30 +58,18 @@ def process_newsletter():
         # Launch newsletter retrieval as a background task and wait for it
         retrieval_result = anvil.server.launch_background_task('get_latest_newsletter')
         
-        if retrieval_result is None:
+        if retrieval_result == "No new newsletter to process.":
             print("No new newsletter found to process")
             return {
                 'status': 'success',
                 'message': "No new newsletter to process"
             }
             
-        print("Step 2: Newsletter retrieved successfully, starting optimization")
-        # Launch optimization as a background task and wait for it
-        optimization_result = anvil.server.launch_background_task('optimize_latest_newsletter')
-        
-        if optimization_result:
-            print("Newsletter optimization completed successfully")
-            return {
-                'status': 'success',
-                'message': "Newsletter retrieved and optimized successfully",
-                'optimization_result': optimization_result
-            }
-        else:
-            print("Newsletter optimization completed but returned no results")
-            return {
-                'status': 'partial_success',
-                'message': "Newsletter retrieved but optimization returned no results"
-            }
+        print("Newsletter processing completed")
+        return {
+            'status': 'success',
+            'message': retrieval_result
+        }
             
     except Exception as e:
         print(f"Error in newsletter processing workflow: {str(e)}")
