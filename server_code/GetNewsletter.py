@@ -158,16 +158,14 @@ def _get_latest_newsletter():
         print("Error retrieving newsletter: " + str(e))
         raise
 
+@anvil.server.callable
 @anvil.server.background_task
 def get_latest_newsletter():
-    while True:
-        result = _get_latest_newsletter()
-        if result is None:
-            print("No new newsletter found, stopping the background task.")
-            break
-        else:
-            print("New newsletter processed, refetching to check for any further updates...")
-            anvil.server.sleep(10)  # wait 10 seconds before checking again
+    result = _get_latest_newsletter()
+    if result is None:
+        print("No new newsletter found.")
+    else:
+        print("Newsletter processed successfully.")
     return "Background task completed."
 
 @anvil.server.callable

@@ -40,10 +40,11 @@ import anvil.tables
 #
 
 @anvil.server.callable
+@anvil.server.background_task
 def process_newsletter():
     """
     Main orchestration function that coordinates the entire newsletter processing workflow.
-    Starts with retrieving the newsletter and will be expanded to handle analysis and sending.
+    Retrieves the newsletter and then optimizes it.
     
     Returns:
         dict: Status of the operation and any relevant data
@@ -51,13 +52,36 @@ def process_newsletter():
     print("Starting newsletter processing workflow")
     
     try:
-        from . import GetNewsletter
-        print("Initiating newsletter retrieval background task which will also insert the newsletter into app_tables.newsletters")
-        GetNewsletter.start_newsletter_retrieval()  # Launch the background task without waiting
-        return {
-            'status': 'success',
-            'message': "Newsletter retrieval initiated. Check background task logs and app_tables.newsletters for inserted data."
-        }
+        from . import GetNewsletter, OptimizeNewsletter
+        
+        print("Step 1: Initiating newsletter retrieval")
+        # Launch newsletter retrieval as a background task and wait for it
+        retrieval_result = anvil.server.launch_background_task('get_latest_newsletter')
+        
+        if retrieval_result is None:
+            print("No new newsletter found to process")
+            return {
+                'status': 'success',
+                'message': "No new newsletter to process"
+            }
+            
+        print("Step 2: Newsletter retrieved successfully, starting optimization")
+        # Launch optimization as a background task and wait for it
+        optimization_result = anvil.server.launch_background_task('optimize_latest_newsletter')
+        
+        if optimization_result:
+            print("Newsletter optimization completed successfully")
+            return {
+                'status': 'success',
+                'message': "Newsletter retrieved and optimized successfully",
+                'optimization_result': optimization_result
+            }
+        else:
+            print("Newsletter optimization completed but returned no results")
+            return {
+                'status': 'partial_success',
+                'message': "Newsletter retrieved but optimization returned no results"
+            }
             
     except Exception as e:
         print(f"Error in newsletter processing workflow: {str(e)}")

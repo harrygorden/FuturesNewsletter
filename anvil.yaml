@@ -3,16 +3,16 @@ db_schema:
   newsletteranalysis:
     client: none
     columns:
-    - admin_ui: {order: 0, width: 200}
+    - admin_ui: {width: 200}
       name: timestamp
       type: datetime
-    - admin_ui: {order: 1, width: 200}
+    - admin_ui: {width: 200}
       name: newsletteranalysis
       type: simpleObject
-    - admin_ui: {order: 2, width: 200}
+    - admin_ui: {width: 200}
       name: originallevels
       type: string
-    - admin_ui: {order: 3, width: 200}
+    - admin_ui: {width: 200}
       name: tradeplan
       type: string
     server: full
@@ -20,41 +20,47 @@ db_schema:
   newsletteroptimized:
     client: none
     columns:
-    - admin_ui: {order: 0, width: 200}
+    - admin_ui: {width: 200}
       name: timestamp
       type: datetime
-    - admin_ui: {order: 2, width: 200}
+    - admin_ui: {width: 200}
       name: keylevels
       type: string
-    - admin_ui: {order: 3, width: 147}
+    - admin_ui: {width: 147}
       name: keylevelsraw
       type: string
-    - admin_ui: {order: 4, width: 200}
+    - admin_ui: {width: 200}
       name: tradeplan
       type: string
-    - admin_ui: {order: 5, width: 200}
+    - admin_ui: {width: 200}
       name: optimized_content
+      type: string
+    - admin_ui: {width: 200}
+      name: trade_recap
+      type: string
+    - admin_ui: {width: 200}
+      name: core_levels
       type: string
     server: full
     title: NewsletterOptimized
   newsletters:
     client: none
     columns:
-    - admin_ui: {order: 0, width: 200}
+    - admin_ui: {width: 200}
       name: timestamp
       type: datetime
-    - admin_ui: {order: 1, width: 200}
-      name: newsletterbody
-      type: simpleObject
-    - admin_ui: {order: 0.5, width: 200}
+    - admin_ui: {width: 200}
       name: newslettersubject
+      type: simpleObject
+    - admin_ui: {width: 200}
+      name: newsletterbody
       type: simpleObject
     server: full
     title: Newsletters
   users:
     client: none
     columns:
-    - admin_ui: {order: 0, width: 200}
+    - admin_ui: {width: 200}
       name: Users
       type: string
     server: full

@@ -195,6 +195,87 @@ if "price_level_detector" not in nlp.pipe_names:
 if "market_sentiment_analyzer" not in nlp.pipe_names:
     nlp.add_pipe("market_sentiment_analyzer", after="price_level_detector")
 
+@spacy.Language.component("semantic_section_chunker")
+def semantic_section_chunker(doc):
+    """Identifies and chunks newsletter sections based on semantic headers and content."""
+    # Define common newsletter section headers with more variations
+    section_headers = {
+        'core_levels': ['core structures', 'key levels', 'levels to engage', 'Core Structures', 'CORE STRUCTURES',
+                       'Key Levels', 'KEY LEVELS', 'Levels to Engage', 'LEVELS TO ENGAGE'],
+        'trade_recap': ['trade recap', 'trading recap', 'trade education', 'Trade Recap', 'TRADE RECAP',
+                       'Trading Recap', 'TRADING RECAP', 'Trade Education', 'TRADE EDUCATION']
+    }
+    
+    # Store identified sections
+    doc._.sections = {}
+    
+    # First find the trade plan section as it will be used as a boundary
+    trade_plan_pattern = r'Trade Plan\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday).*?(?:In summary for tomorrow:.*?)(?=\s*As always no crystal balls|\n\n|\Z)'
+    trade_plan_match = re.search(trade_plan_pattern, doc.text, re.DOTALL | re.IGNORECASE)
+    trade_plan_start = -1
+    if trade_plan_match:
+        trade_plan_start = trade_plan_match.start()
+        doc._.sections['trade_plan'] = trade_plan_match.group(0).strip()
+        print(f"Found trade plan section starting at position {trade_plan_start}")
+    
+    # Find section boundaries for other sections
+    section_spans = []
+    for section_type, headers in section_headers.items():
+        for header in headers:
+            # Use re.finditer for case-insensitive matching
+            matches = re.finditer(re.escape(header), doc.text, re.IGNORECASE)
+            for match in matches:
+                section_spans.append((match.start(), section_type))
+                print(f"Found {section_type} section with header: {header}")
+    
+    # Sort section spans by their start position
+    section_spans.sort(key=lambda x: x[0])
+    
+    # Extract sections
+    for i in range(len(section_spans)):
+        start_pos = section_spans[i][0]
+        section_type = section_spans[i][1]
+        
+        # End position is either the start of next section, trade plan start, or end of document
+        if i < len(section_spans) - 1:
+            end_pos = section_spans[i + 1][0]
+        else:
+            end_pos = len(doc.text)
+        
+        # If this is the trade_recap section and we found a trade plan, use trade plan start as boundary
+        if section_type == 'trade_recap' and trade_plan_start != -1:
+            end_pos = min(end_pos, trade_plan_start)
+        
+        # Find the actual start of content (skip header line)
+        section_text = doc.text[start_pos:end_pos]
+        content_start = section_text.find('\n')
+        if content_start != -1:
+            start_pos += content_start + 1
+        
+        # Store the section content
+        section_content = doc.text[start_pos:end_pos].strip()
+        doc._.sections[section_type] = section_content
+        print(f"Stored {section_type} section with length: {len(section_content)} chars")
+    
+    # Debug print final sections
+    print("Final sections found:", list(doc._.sections.keys()))
+    
+    return doc
+
+# Register the section extension
+if not Doc.has_extension("sections"):
+    Doc.set_extension("sections", default={})
+
+# Add semantic chunker to pipeline
+if "semantic_section_chunker" not in nlp.pipe_names:
+    nlp.add_pipe("semantic_section_chunker", after="market_sentiment_analyzer")
+
+def get_newsletter_sections(text):
+    """Process newsletter text and return semantically chunked sections."""
+    doc = nlp(text)
+    return doc._.sections
+
+@anvil.server.callable
 @anvil.server.background_task
 def optimize_latest_newsletter():
     """Background task to optimize the latest extracted email newsletter.
@@ -211,16 +292,19 @@ def optimize_latest_newsletter():
         body = latest['newsletterbody']
         print('Fetched newsletter with subject:', subject)
 
-        # Apply spaCy-based optimization
+        # Clean the text first
         cleaned_body = clean_text(body)
-        text_without_discard, preserved_section = segment_text(cleaned_body)
-        formatted_levels = format_preserved_levels(preserved_section)
+        
+        # Use semantic chunking to extract sections
+        sections = get_newsletter_sections(cleaned_body)
+        
+        # Extract key levels from the core levels section
+        core_levels = sections.get('core_levels', '')
+        formatted_levels = format_preserved_levels(core_levels)
         raw_levels = format_keylevels_raw(formatted_levels)
         
-        # Extract trade plan section
-        trade_plan_match = re.search(r'Trade Plan\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday).*?(?:In summary for tomorrow:.*?)(?=\n)', 
-                                   body, re.DOTALL | re.IGNORECASE)
-        trade_plan_text = trade_plan_match.group(0).strip() if trade_plan_match else ""
+        # Get trade plan from semantically chunked sections
+        trade_plan_text = sections.get('trade_plan', '')
         
         # Write the formatted levels and trade plan to the newsletteranalysis table
         app_tables.newsletteranalysis.add_row(
@@ -229,15 +313,18 @@ def optimize_latest_newsletter():
             timestamp=datetime.datetime.now()
         )
         
-        # Also write the formatted levels, raw numbers, and trade plan to the newsletteroptimized table
+        # Write to the newsletteroptimized table
         app_tables.newsletteroptimized.add_row(
             keylevels=formatted_levels,
             keylevelsraw=raw_levels,
             tradeplan=trade_plan_text,
-            optimized_content=text_without_discard,
+            optimized_content=cleaned_body,
+            core_levels=sections.get('core_levels', ''),
+            trade_recap=sections.get('trade_recap', ''),
             timestamp=datetime.datetime.now()
         )
         
+        # Extract additional analysis data
         key_levels = extract_key_levels(cleaned_body)
         trade_setups = identify_trade_setups(cleaned_body)
         risk_factors = calculate_risk_factors(cleaned_body)
@@ -246,8 +333,7 @@ def optimize_latest_newsletter():
             "newslettersubject": subject,
             "original_body": body,
             "cleaned_body": cleaned_body,
-            "text_without_discard": text_without_discard,
-            "preserved_section": preserved_section,
+            "sections": sections,
             "key_levels": key_levels,
             "trade_setups": trade_setups,
             "risk_factors": risk_factors,
