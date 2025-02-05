@@ -112,29 +112,78 @@ def calculate_risk_factors(text):
     risk_count = len(re.findall(r'\brisk\b', text, flags=re.IGNORECASE))
     return {"risk_score": risk_count}
 
-# NEW FUNCTION FOR EXTRACTING TRADE PLAN
-
-def extract_trade_plan(text):
-    """Extracts the trade plan from the newsletter text.
-    It extracts text starting with a line 'Trade Plan [DAY]' (e.g., 'Trade Plan Monday')
-    through the paragraph that starts with 'In summary for tomorrow:', including that paragraph.
-    """
-    import re
-    start_match = re.search(r"(?m)^Trade Plan (?:Monday|Tuesday|Wednesday|Thursday|Friday)$", text)
-    if not start_match:
-        return ""
-    start_index = start_match.start()
-    rest_text = text[start_index:]
-    end_match = re.search(r"(?m)^In summary for tomorrow:.*", rest_text)
-    if not end_match:
-        return rest_text.strip()
-    # Find the end of the paragraph that starts with 'In summary for tomorrow:' (ends at the first blank line)
-    paragraph_end = re.search(r"(?:\r?\n){2,}", rest_text[end_match.start():])
-    if paragraph_end:
-        end_index = end_match.start() + paragraph_end.start()
+@spacy.Language.component("market_sentiment_analyzer")
+def market_sentiment_analyzer(doc):
+    """Analyzes market sentiment in the text."""
+    bullish_terms = ['bullish', 'upward', 'higher', 'rally', 'squeeze', 'long']
+    bearish_terms = ['bearish', 'downward', 'lower', 'breakdown', 'short', 'sell']
+    
+    bull_count = 0
+    bear_count = 0
+    
+    for token in doc:
+        if token.text.lower() in bullish_terms:
+            bull_count += 1
+        elif token.text.lower() in bearish_terms:
+            bear_count += 1
+    
+    total = bull_count + bear_count
+    if total > 0:
+        sentiment_score = (bull_count - bear_count) / total  # -1 to 1 scale
     else:
-        end_index = len(rest_text)
-    return rest_text[:end_index].strip()
+        sentiment_score = 0
+        
+    doc._.market_sentiment = {
+        'score': sentiment_score,
+        'bullish_mentions': bull_count,
+        'bearish_mentions': bear_count
+    }
+    return doc
+
+# Register the extension
+if not Doc.has_extension("market_sentiment"):
+    Doc.set_extension("market_sentiment", default={})
+
+@spacy.Language.component("price_level_detector")
+def price_level_detector(doc):
+    """Detects price levels and their context (support/resistance/target)."""
+    price_pattern = r'(\d{4}(?:\.\d{1,2})?)'  # Matches 4-digit prices with optional decimals
+    level_info = []
+    
+    for match in re.finditer(price_pattern, doc.text):
+        price = match.group(1)
+        # Get surrounding context (20 chars before and after)
+        start = max(0, match.start() - 20)
+        end = min(len(doc.text), match.end() + 20)
+        context = doc.text[start:end]
+        
+        level_type = 'unknown'
+        if 'support' in context.lower():
+            level_type = 'support'
+        elif 'resistance' in context.lower():
+            level_type = 'resistance'
+        elif 'target' in context.lower():
+            level_type = 'target'
+            
+        level_info.append({
+            'price': price,
+            'type': level_type,
+            'context': context.strip()
+        })
+    
+    doc._.price_levels = level_info
+    return doc
+
+# Register the extension for price levels
+if not Doc.has_extension("price_levels"):
+    Doc.set_extension("price_levels", default=[])
+
+# Add components to pipeline in correct order
+if "price_level_detector" not in nlp.pipe_names:
+    nlp.add_pipe("price_level_detector", after="support_resistance_detector")
+
+if "market_sentiment_analyzer" not in nlp.pipe_names:
+    nlp.add_pipe("market_sentiment_analyzer", after="price_level_detector")
 
 @anvil.server.background_task
 def optimize_latest_newsletter():
@@ -161,18 +210,14 @@ def optimize_latest_newsletter():
         # Write the formatted levels to the newsletteranalysis table
         app_tables.newsletteranalysis.add_row(
             originallevels=formatted_levels,
-            timestamp=datetime.datetime.now()
+            timestamp=datetime.datetime.now()  # You can also use datetime.datetime.utcnow() if preferred
         )
         
-        # Extract trade plan from the newsletter text
-        trade_plan = extract_trade_plan(cleaned_body)
-
-        # Also write the formatted levels, the raw numbers, and the trade plan to the newsletteroptimized table
+        # Also write the formatted levels and the raw numbers to the newsletteroptimized table
         app_tables.newsletteroptimized.add_row(
             keylevels=formatted_levels,
             keylevelsraw=raw_levels,
-            tradeplan=trade_plan,
-            timestamp=datetime.datetime.now()
+            timestamp=datetime.datetime.now()  # Optional: you can also use datetime.datetime.utcnow()
         )
         
         key_levels = extract_key_levels(cleaned_body)

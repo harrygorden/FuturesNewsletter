@@ -7,7 +7,6 @@ import anvil.secrets
 import anvil.server
 import anvil.users
 import anvil.tables
-from anvil.tables import app_tables
 
 # This is the main orchestration module for the Futures Newsletter Analysis application.
 # It coordinates the entire workflow of retrieving, analyzing, and sending newsletter analyses.
