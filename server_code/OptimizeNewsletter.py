@@ -112,6 +112,30 @@ def calculate_risk_factors(text):
     risk_count = len(re.findall(r'\brisk\b', text, flags=re.IGNORECASE))
     return {"risk_score": risk_count}
 
+# NEW FUNCTION FOR EXTRACTING TRADE PLAN
+
+def extract_trade_plan(text):
+    """Extracts the trade plan from the newsletter text.
+    It extracts text starting with a line 'Trade Plan [DAY]' (e.g., 'Trade Plan Monday')
+    through the paragraph that starts with 'In summary for tomorrow:', including that paragraph.
+    """
+    import re
+    start_match = re.search(r"(?m)^Trade Plan (?:Monday|Tuesday|Wednesday|Thursday|Friday)$", text)
+    if not start_match:
+        return ""
+    start_index = start_match.start()
+    rest_text = text[start_index:]
+    end_match = re.search(r"(?m)^In summary for tomorrow:.*", rest_text)
+    if not end_match:
+        return rest_text.strip()
+    # Find the end of the paragraph that starts with 'In summary for tomorrow:' (ends at the first blank line)
+    paragraph_end = re.search(r"(?:\r?\n){2,}", rest_text[end_match.start():])
+    if paragraph_end:
+        end_index = end_match.start() + paragraph_end.start()
+    else:
+        end_index = len(rest_text)
+    return rest_text[:end_index].strip()
+
 @anvil.server.background_task
 def optimize_latest_newsletter():
     """Background task to optimize the latest extracted email newsletter.
@@ -137,14 +161,18 @@ def optimize_latest_newsletter():
         # Write the formatted levels to the newsletteranalysis table
         app_tables.newsletteranalysis.add_row(
             originallevels=formatted_levels,
-            timestamp=datetime.datetime.now()  # You can also use datetime.datetime.utcnow() if preferred
+            timestamp=datetime.datetime.now()
         )
         
-        # Also write the formatted levels and the raw numbers to the newsletteroptimized table
+        # Extract trade plan from the newsletter text
+        trade_plan = extract_trade_plan(cleaned_body)
+
+        # Also write the formatted levels, the raw numbers, and the trade plan to the newsletteroptimized table
         app_tables.newsletteroptimized.add_row(
             keylevels=formatted_levels,
             keylevelsraw=raw_levels,
-            timestamp=datetime.datetime.now()  # Optional: you can also use datetime.datetime.utcnow()
+            tradeplan=trade_plan,
+            timestamp=datetime.datetime.now()
         )
         
         key_levels = extract_key_levels(cleaned_body)
