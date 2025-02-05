@@ -207,17 +207,24 @@ def optimize_latest_newsletter():
         formatted_levels = format_preserved_levels(preserved_section)
         raw_levels = format_keylevels_raw(formatted_levels)
         
-        # Write the formatted levels to the newsletteranalysis table
+        # Extract trade plan section
+        trade_plan_match = re.search(r'Trade Plan\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday).*?(?:In summary for tomorrow:.*?)(?=\n)', 
+                                   body, re.DOTALL | re.IGNORECASE)
+        trade_plan_text = trade_plan_match.group(0).strip() if trade_plan_match else ""
+        
+        # Write the formatted levels and trade plan to the newsletteranalysis table
         app_tables.newsletteranalysis.add_row(
             originallevels=formatted_levels,
-            timestamp=datetime.datetime.now()  # You can also use datetime.datetime.utcnow() if preferred
+            tradeplan=trade_plan_text,
+            timestamp=datetime.datetime.now()
         )
         
-        # Also write the formatted levels and the raw numbers to the newsletteroptimized table
+        # Also write the formatted levels, raw numbers, and trade plan to the newsletteroptimized table
         app_tables.newsletteroptimized.add_row(
             keylevels=formatted_levels,
             keylevelsraw=raw_levels,
-            timestamp=datetime.datetime.now()  # Optional: you can also use datetime.datetime.utcnow()
+            tradeplan=trade_plan_text,
+            timestamp=datetime.datetime.now()
         )
         
         key_levels = extract_key_levels(cleaned_body)
@@ -232,7 +239,8 @@ def optimize_latest_newsletter():
             "preserved_section": preserved_section,
             "key_levels": key_levels,
             "trade_setups": trade_setups,
-            "risk_factors": risk_factors
+            "risk_factors": risk_factors,
+            "trade_plan": trade_plan_text
         }
 
         print("Optimized newsletter data:", optimized_data)
