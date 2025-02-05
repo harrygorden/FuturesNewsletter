@@ -86,6 +86,12 @@ scheduled_tasks:
     at: {hour: 23, minute: 0}
     every: day
     n: 1
+- job_id: PLSPNKGE
+  task_name: process_newsletter
+  time_spec:
+    at: {hour: 0, minute: 0}
+    every: day
+    n: 1
 secrets:
   google_client_id:
     type: secret
