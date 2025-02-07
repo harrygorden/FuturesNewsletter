@@ -32,7 +32,7 @@ def process_market_events(newsletter_id):
          for event in events:
              # Assuming marketcalendar table has 'time' and 'eventname' columns.
              event_time = event['time']
-             event_name = event['event'] if 'event' in event else 'Unnamed Event'
+             event_name = event['event']
              
              # Format event_time if it's a time object. Remove leading zero for hour if present.
              if hasattr(event_time, 'strftime'):
