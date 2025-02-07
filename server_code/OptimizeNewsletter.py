@@ -275,6 +275,15 @@ def get_newsletter_sections(text):
     doc = nlp(text)
     return doc._.sections
 
+def get_newsletter_id(session_date=None):
+    """
+    Generates a newsletter ID in yyyymmdd format.
+    If session_date is not provided, it uses the current date.
+    """
+    if session_date is None:
+        session_date = datetime.datetime.now()  # Replace with your session logic if needed.
+    return session_date.strftime("%Y%m%d")
+
 @anvil.server.callable
 @anvil.server.background_task
 def optimize_latest_newsletter():
@@ -306,15 +315,20 @@ def optimize_latest_newsletter():
         # Get trade plan from semantically chunked sections
         trade_plan_text = sections.get('trade_plan', '')
         
-        # Write the formatted levels and trade plan to the newsletteranalysis table
+        # Generate the newsletter_id using the helper function
+        newsletter_id = get_newsletter_id()
+
+        # Write the formatted levels and trade plan to the newsletteranalysis table with newsletter_id
         app_tables.newsletteranalysis.add_row(
+            newsletter_id=newsletter_id,
             originallevels=formatted_levels,
             tradeplan=trade_plan_text,
             timestamp=datetime.datetime.now()
         )
         
-        # Write to the newsletteroptimized table
+        # Write to the newsletteroptimized table with newsletter_id
         app_tables.newsletteroptimized.add_row(
+            newsletter_id=newsletter_id,
             keylevels=formatted_levels,
             keylevelsraw=raw_levels,
             tradeplan=trade_plan_text,

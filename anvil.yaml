@@ -15,14 +15,14 @@ db_schema:
     - admin_ui: {width: 200}
       name: event
       type: string
-    - admin_ui: {order: 3, width: 200}
-      name: id
-      type: string
     server: full
     title: MarketCalendar
   newsletteranalysis:
     client: none
     columns:
+    - admin_ui: {width: 200}
+      name: newsletter_id
+      type: string
     - admin_ui: {width: 200}
       name: timestamp
       type: datetime
@@ -35,17 +35,17 @@ db_schema:
     - admin_ui: {width: 200}
       name: tradeplan
       type: string
-    - admin_ui: {order: 4, width: 200}
+    - admin_ui: {width: 200}
       name: MarketEvents
-      type: string
-    - admin_ui: {order: -1, width: 200}
-      name: id
       type: string
     server: full
     title: NewsletterAnalysis
   newsletteroptimized:
     client: none
     columns:
+    - admin_ui: {width: 200}
+      name: newsletter_id
+      type: string
     - admin_ui: {width: 200}
       name: timestamp
       type: datetime
@@ -67,14 +67,14 @@ db_schema:
     - admin_ui: {width: 200}
       name: core_levels
       type: string
-    - admin_ui: {order: -1, width: 200}
-      name: id
-      type: string
     server: full
     title: NewsletterOptimized
   newsletters:
     client: none
     columns:
+    - admin_ui: {width: 200}
+      name: newsletter_id
+      type: string
     - admin_ui: {width: 200}
       name: timestamp
       type: datetime
@@ -84,9 +84,6 @@ db_schema:
     - admin_ui: {width: 200}
       name: newsletterbody
       type: simpleObject
-    - admin_ui: {order: -1, width: 200}
-      name: id
-      type: string
     server: full
     title: Newsletters
   users:

@@ -1,77 +1,60 @@
-import anvil.google.auth, anvil.google.drive, anvil.google.mail
-from anvil.google.drive import app_files
-import anvil.secrets
 import anvil.tables as tables
 import anvil.tables.query as q
 from anvil.tables import app_tables
 import anvil.server
-import datetime
-import json
-
-# ==============================================================================
-# MarketEvents Module
-#
-# Purpose:
-#   This module calculates the next trading session's date based on the current day.
-#   It follows these rules:
-#     - Monday to Thursday: the next session is the following day.
-#     - Friday: the next session is the following Monday.
-#     - Saturday and Sunday: the next session is assumed to be the following Monday.
-#
-#   After determining the next session's date, the module queries the 'marketcalendar'
-#   table in the Anvil database for events matching that date. If matching events are found,
-#   it extracts their 'date' and 'time' values and writes them to the 'newsletteranalysis' table
-#   under the 'MarketEvents' column.
-#
-# Testing:
-#   You can test this functionality by calling the update_market_events() function directly
-#   from the Anvil command line.
-#
-# Note: Functions marked with @anvil.server.callable can be invoked remotely via anvil.server.call().
-# ==============================================================================
-
-# This is a server module. It runs on the Anvil server,
-# rather than in the user's browser.
-#
-# To allow anvil.server.call() to call functions here, we mark
-# them with @anvil.server.callable.
-# Here is an example - you can replace it with your own:
-#
-# @anvil.server.callable
-# def say_hello(name):
-#   print("Hello, " + name + "!")
-#   return 42
-#
 
 @anvil.server.callable
-def update_market_events():
-    """Calculates next session's date and updates newsletter analysis with market event details if found."""
-    today = datetime.date.today()
-    weekday = today.weekday()  # Monday=0, Tuesday=1, ... Sunday=6
-    
-    # Determine the next session's date
-    if 0 <= weekday <= 3:  # Monday to Thursday
-        next_session = today + datetime.timedelta(days=1)
-    elif weekday == 4:  # Friday
-        next_session = today + datetime.timedelta(days=3)
-    else:  # Saturday (5) or Sunday (6): assume next session is Monday
-        next_session = today + datetime.timedelta(days=(7 - weekday))
-    
-    # Convert date to string as the 'date' column in marketcalendar is a string field
-    next_session_str = next_session.strftime('%Y-%m-%d')
-    # Search for market calendar events with the calculated date as a string
-    events = list(app_tables.marketcalendar.search(date=next_session_str))
-    
-    if events:
-        # Extract the time and event name from each matching record and format them
-        events_data = [f"{event['time']}          {event['event']}" for event in events]
-        # Join multiple events with a newline if applicable
-        events_str = "\n".join(events_data)
-        app_tables.newsletteranalysis.add_row(MarketEvents=events_str)
-        print(f"Inserted MarketEvents for session date {next_session}: {events_str}")
-    else:
-        print(f"No market calendar events found for the next session date: {next_session}")
-        
+@anvil.server.background_task
 
-if __name__ == '__main__':
-    update_market_events()
+def process_market_events(newsletter_id):
+    """
+    Processes market events for a given newsletter by converting the newsletter_id 
+    (in YYYYMMDD format) to YYYY-MM-DD, searching the marketcalendar table for events
+    on that date, and updating the newsletteranalysis table's MarketEvents field with
+    the event times and names formatted as:
+
+    7:30AM          Event Name 1
+    7:30AM          Event Name 2
+    9:00AM          Event Name 3
+    """
+    # Validate newsletter_id format
+    if len(newsletter_id) != 8:
+         raise ValueError("newsletter_id must be in YYYYMMDD format")
+         
+    # Convert newsletter_id to YYYY-MM-DD format
+    event_date = f"{newsletter_id[:4]}-{newsletter_id[4:6]}-{newsletter_id[6:]}"
+    
+    # Search for matching events in the marketcalendar table
+    events = list(app_tables.marketcalendar.search(date=event_date))
+    
+    events_text = ""
+    if events:
+         for event in events:
+             # Assuming marketcalendar table has 'time' and 'eventname' columns.
+             event_time = event['time']
+             event_name = event['event'] if 'event' in event else 'Unnamed Event'
+             
+             # Format event_time if it's a time object. Remove leading zero for hour if present.
+             if hasattr(event_time, 'strftime'):
+                 event_time_str = event_time.strftime("%I:%M%p").lstrip("0")
+             else:
+                 event_time_str = str(event_time)
+             
+             # Append formatted line with padded time
+             events_text += f"{event_time_str:<15}{event_name}\n"
+         events_text = events_text.rstrip("\n")
+    else:
+         events_text = ""
+         
+    # Update the newsletteranalysis table for the corresponding newsletter_id
+    rows = list(app_tables.newsletteranalysis.search(newsletter_id=newsletter_id))
+    if rows:
+         row = rows[0]
+         row['MarketEvents'] = events_text
+    else:
+         app_tables.newsletteranalysis.add_row(
+              newsletter_id=newsletter_id,
+              MarketEvents=events_text
+         )
+    
+    return f"Processed market events for newsletter_id {newsletter_id}"

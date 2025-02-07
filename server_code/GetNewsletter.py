@@ -85,6 +85,15 @@ def get_gmail_service():
         print(f"Error creating Gmail service: {str(e)}")
         raise
 
+def get_newsletter_id(session_date=None):
+    """
+    Generates a newsletter ID in yyyymmdd format.
+    If session_date is not provided, it uses the current date.
+    """
+    if session_date is None:
+        session_date = datetime.datetime.now()
+    return session_date.strftime("%Y%m%d")
+
 def _get_latest_newsletter():
     """Synchronous helper function to retrieve the newsletter."""
     try:
@@ -146,7 +155,10 @@ def _get_latest_newsletter():
         except Exception as e:
             print("Error parsing date, storing raw date string:", e)
             news_timestamp = date
-        app_tables.newsletters.add_row(timestamp=news_timestamp,
+        newsletter_id = get_newsletter_id()
+        app_tables.newsletters.add_row(
+                                         newsletter_id=newsletter_id,
+                                         timestamp=news_timestamp,
                                          newslettersubject=subject,
                                          newsletterbody=body)
         print("Newsletter row inserted into app_tables.newsletters")
@@ -169,7 +181,7 @@ def get_latest_newsletter():
         print("Newsletter processed successfully.")
         # Chain the optimization task after successful retrieval
         print("Launching optimization task...")
-        optimization_result = anvil.server.launch_background_task('optimize_latest_newsletter')
+        anvil.server.launch_background_task('optimize_latest_newsletter')
         return "Newsletter retrieved and optimization task launched."
 
 @anvil.server.callable
