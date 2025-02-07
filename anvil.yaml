@@ -15,6 +15,9 @@ db_schema:
     - admin_ui: {width: 200}
       name: event
       type: string
+    - admin_ui: {order: 3, width: 200}
+      name: id
+      type: string
     server: full
     title: MarketCalendar
   newsletteranalysis:
@@ -34,6 +37,9 @@ db_schema:
       type: string
     - admin_ui: {order: 4, width: 200}
       name: MarketEvents
+      type: string
+    - admin_ui: {order: -1, width: 200}
+      name: id
       type: string
     server: full
     title: NewsletterAnalysis
@@ -61,6 +67,9 @@ db_schema:
     - admin_ui: {width: 200}
       name: core_levels
       type: string
+    - admin_ui: {order: -1, width: 200}
+      name: id
+      type: string
     server: full
     title: NewsletterOptimized
   newsletters:
@@ -75,6 +84,9 @@ db_schema:
     - admin_ui: {width: 200}
       name: newsletterbody
       type: simpleObject
+    - admin_ui: {order: -1, width: 200}
+      name: id
+      type: string
     server: full
     title: Newsletters
   users:
