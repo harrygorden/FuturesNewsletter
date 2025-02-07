@@ -2,3 +2,6 @@
 *.pyo
 __pycache__
 .anvil-data
+source_data*
+db_tools*
+.env
