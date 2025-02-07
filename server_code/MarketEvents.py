@@ -2,6 +2,8 @@ import anvil.tables as tables
 import anvil.tables.query as q
 from anvil.tables import app_tables
 import anvil.server
+import time
+import datetime
 
 @anvil.server.callable
 @anvil.server.background_task
@@ -46,15 +48,24 @@ def process_market_events(newsletter_id):
     else:
          events_text = ""
          
-    # Update the newsletteranalysis table for the corresponding newsletter_id
+    # Get or create the row in newsletteranalysis table
     rows = list(app_tables.newsletteranalysis.search(newsletter_id=newsletter_id))
     if rows:
          row = rows[0]
          row['MarketEvents'] = events_text
     else:
-         app_tables.newsletteranalysis.add_row(
-              newsletter_id=newsletter_id,
-              MarketEvents=events_text
-         )
+         # Try to get the row again after a short delay in case another process just created it
+         time.sleep(0.5)  # Wait half a second
+         rows = list(app_tables.newsletteranalysis.search(newsletter_id=newsletter_id))
+         if rows:
+             row = rows[0]
+             row['MarketEvents'] = events_text
+         else:
+             # If still no row exists, create a new one with just the MarketEvents field
+             app_tables.newsletteranalysis.add_row(
+                  newsletter_id=newsletter_id,
+                  MarketEvents=events_text,
+                  timestamp=datetime.datetime.now()  # Add timestamp to match other processes
+             )
     
     return f"Processed market events for newsletter_id {newsletter_id}"

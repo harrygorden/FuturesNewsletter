@@ -8,6 +8,7 @@ import anvil.server
 import spacy
 import re
 import datetime  # <--- Added datetime import for timestamp handling
+import time
 
 # This module is part of our newsletter processing pipeline.
 # It runs on the Anvil server and is responsible for optimizing the extracted newsletter text,
@@ -318,13 +319,30 @@ def optimize_latest_newsletter():
         # Generate the newsletter_id using the helper function
         newsletter_id = get_newsletter_id()
 
-        # Write the formatted levels and trade plan to the newsletteranalysis table with newsletter_id
-        app_tables.newsletteranalysis.add_row(
-            newsletter_id=newsletter_id,
-            originallevels=formatted_levels,
-            tradeplan=trade_plan_text,
-            timestamp=datetime.datetime.now()
-        )
+        # Get or create the row in newsletteranalysis table
+        rows = list(app_tables.newsletteranalysis.search(newsletter_id=newsletter_id))
+        if rows:
+            row = rows[0]
+            row['originallevels'] = formatted_levels
+            row['tradeplan'] = trade_plan_text
+            row['timestamp'] = datetime.datetime.now()
+        else:
+            # Try to get the row again after a short delay in case another process just created it
+            time.sleep(0.5)  # Wait half a second
+            rows = list(app_tables.newsletteranalysis.search(newsletter_id=newsletter_id))
+            if rows:
+                row = rows[0]
+                row['originallevels'] = formatted_levels
+                row['tradeplan'] = trade_plan_text
+                row['timestamp'] = datetime.datetime.now()
+            else:
+                # If still no row exists, create a new one
+                app_tables.newsletteranalysis.add_row(
+                    newsletter_id=newsletter_id,
+                    originallevels=formatted_levels,
+                    tradeplan=trade_plan_text,
+                    timestamp=datetime.datetime.now()
+                )
         
         # Write to the newsletteroptimized table with newsletter_id
         app_tables.newsletteroptimized.add_row(

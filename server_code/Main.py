@@ -52,7 +52,7 @@ def process_newsletter():
     print("Starting newsletter processing workflow")
     
     try:
-        from . import GetNewsletter, OptimizeNewsletter
+        from . import GetNewsletter, OptimizeNewsletter, MarketEvents
         
         print("Step 1: Initiating newsletter retrieval")
         # Launch newsletter retrieval as a background task and wait for it
@@ -64,6 +64,13 @@ def process_newsletter():
                 'status': 'success',
                 'message': "No new newsletter to process"
             }
+        
+        # Get today's newsletter_id using the same method as GetNewsletter
+        newsletter_id = GetNewsletter.get_newsletter_id()
+            
+        # Process market events for this newsletter
+        print("Step 2: Processing market events")
+        anvil.server.launch_background_task('process_market_events', newsletter_id)
             
         print("Newsletter processing completed")
         return {
