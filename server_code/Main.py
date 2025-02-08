@@ -53,8 +53,8 @@ def process_newsletter():
         from . import GetNewsletter, OptimizeNewsletter, MarketEvents, utils
         
         # Step 1: Get newsletter_id for this session
-        newsletter_id = utils.get_newsletter_id()
-        print(f"Processing newsletter for ID: {newsletter_id}")
+        newsletter_id, trading_day = utils.get_newsletter_id()
+        print(f"Processing newsletter for ID: {newsletter_id} (for {trading_day})")
         
         # Step 2: Retrieve newsletter
         print("Step 1: Initiating newsletter retrieval")

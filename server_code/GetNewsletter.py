@@ -119,7 +119,7 @@ def get_newsletter_id(session_date=None):
         days_to_add = 0
     
     next_trading_day = current_date + datetime.timedelta(days=days_to_add)
-    return next_trading_day.strftime("%Y%m%d")
+    return next_trading_day.strftime("%Y%m%d"), next_trading_day
 
 def _get_latest_newsletter():
     """Synchronous helper function to retrieve the newsletter."""
@@ -177,7 +177,7 @@ def _get_latest_newsletter():
             print("Error parsing date, storing raw date string:", e)
             news_timestamp = date
 
-        newsletter_id = get_newsletter_id()
+        newsletter_id, _ = get_newsletter_id()  # Only use the ID part
         app_tables.newsletters.add_row(
             newsletter_id=newsletter_id,
             timestamp=news_timestamp,

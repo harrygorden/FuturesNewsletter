@@ -12,7 +12,7 @@ def process_market_events(newsletter_id):
     """
     Processes market events for a given newsletter and updates the newsletteranalysis table.
     """
-    # Convert newsletter_id to YYYY-MM-DD format
+    # Convert newsletter_id to YYYY-MM-DD format (newsletter_id is now just the string part)
     event_date = f"{newsletter_id[:4]}-{newsletter_id[4:6]}-{newsletter_id[6:]}"
     
     # Search for matching events in the marketcalendar table
