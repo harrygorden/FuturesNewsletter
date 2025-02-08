@@ -53,6 +53,8 @@ if "support_resistance_detector" not in nlp.pipe_names:
 
 def clean_text(text):
     """Cleans the text by removing URLs, timestamps, and specific unwanted sections."""
+    # Normalize line endings first
+    text = text.replace('\r\n', '\n')   # Convert Windows line endings to Unix
     text = re.sub(r'https?://\S+', '', text)   # Remove URLs
     text = re.sub(r'\d{1,2}:\d{2}\s*[AP]M\s*[A-Z]{2,}', '', text)  # Remove timestamps
     text = re.sub(r'View this post on the web at.*?\n', '', text)  # Remove "View this post" line
@@ -218,49 +220,30 @@ def semantic_section_chunker(doc):
         print(f"\nLooking for trade plan section for {doc._.trading_day}")
         
         # First, let's find all instances of "Trade Plan Monday" to see the context
-        plan_day_pattern = fr'Trade Plan\s+{doc._.trading_day}'
-        plan_day_matches = list(re.finditer(plan_day_pattern, doc.text, re.IGNORECASE))
+        plan_day_pattern = fr'(?:^|\n|\r\n)\s*Trade Plan\s+{doc._.trading_day}'
+        plan_day_matches = list(re.finditer(plan_day_pattern, doc.text, re.IGNORECASE | re.MULTILINE))
         if plan_day_matches:
-            print(f"\nFound {len(plan_day_matches)} instances of '{plan_day_pattern}':")
+            print(f"\nFound {len(plan_day_matches)} instances of 'Trade Plan {doc._.trading_day}':")
             for match in plan_day_matches:
                 start = max(0, match.start() - 50)
                 end = min(len(doc.text), match.end() + 50)
                 print(f"\nMatch at position {match.start()}:")
                 print(f"...{doc.text[start:end]}...")
+                
+                # Try to extract the trade plan section from this match
+                section_start = match.start()
+                section_text = doc.text[section_start:]
+                summary_match = re.search(r'In summary for.*?(?=\s*As always no crystal balls|\n\n|\Z)', 
+                                        section_text, re.IGNORECASE | re.DOTALL)
+                if summary_match:
+                    trade_plan_start = section_start
+                    doc._.sections['trade_plan'] = doc.text[section_start:section_start + summary_match.end()].strip()
+                    print(f"Found complete trade plan section starting at position {trade_plan_start}")
+                    print("\nFirst 100 chars of matched text:")
+                    print(doc._.sections['trade_plan'][:100] + "...")
+                    break
         else:
-            print(f"No instances of '{plan_day_pattern}' found!")
-            
-        # Now look for "In summary for tomorrow"
-        summary_matches = list(re.finditer(r'In summary for tomorrow:', doc.text, re.IGNORECASE))
-        if summary_matches:
-            print(f"\nFound {len(summary_matches)} instances of 'In summary for tomorrow:':")
-            for match in summary_matches:
-                start = max(0, match.start() - 50)
-                end = min(len(doc.text), match.end() + 50)
-                print(f"\nMatch at position {match.start()}:")
-                print(f"...{doc.text[start:end]}...")
-        else:
-            print("No instances of 'In summary for tomorrow:' found!")
-        
-        # Try a more flexible pattern
-        trade_plan_pattern = fr'(?:Trade Plan\s+{doc._.trading_day}[\s\S]*?In summary for tomorrow:[\s\S]*?)(?=\s*(?:As always no crystal balls|\n\n|\Z))'
-        print(f"\nUsing pattern: {trade_plan_pattern}")
-        trade_plan_match = re.search(trade_plan_pattern, doc.text, re.IGNORECASE)
-        if trade_plan_match:
-            trade_plan_start = trade_plan_match.start()
-            doc._.sections['trade_plan'] = trade_plan_match.group(0).strip()
-            print(f"Found trade plan section for {doc._.trading_day} starting at position {trade_plan_start}")
-            print("\nFirst 100 chars of matched text:")
-            print(doc._.sections['trade_plan'][:100] + "...")
-        else:
-            print(f"No trade plan section found matching pattern for {doc._.trading_day}")
-            # Let's also look for just 'Trade Plan' to see if it exists in a different format
-            basic_matches = re.finditer(r'Trade Plan', doc.text, re.IGNORECASE)
-            print("\nFound 'Trade Plan' mentions at positions:")
-            for match in basic_matches:
-                start = max(0, match.start() - 30)
-                end = min(len(doc.text), match.end() + 30)
-                print(f"Position {match.start()}: ...{doc.text[start:end]}...")
+            print(f"No instances of 'Trade Plan {doc._.trading_day}' found!")
     
     # Find section boundaries for other sections
     section_spans = []
