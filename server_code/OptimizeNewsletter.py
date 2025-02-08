@@ -278,12 +278,39 @@ def get_newsletter_sections(text):
 
 def get_newsletter_id(session_date=None):
     """
-    Generates a newsletter ID in yyyymmdd format.
+    Generates a newsletter ID in yyyymmdd format for the next trading day.
     If session_date is not provided, it uses the current date.
+    Returns Monday's date when run on Friday after market close (23:00), Saturday, or Sunday.
     """
     if session_date is None:
-        session_date = datetime.datetime.now()  # Replace with your session logic if needed.
-    return session_date.strftime("%Y%m%d")
+        session_date = datetime.datetime.now()
+    
+    # Convert to just date if datetime
+    current_date = session_date.date() if isinstance(session_date, datetime.datetime) else session_date
+    
+    # Get the day of week (0=Monday, 6=Sunday)
+    weekday = current_date.weekday()
+    
+    # If it's Friday and before market close, use next trading day (Monday)
+    if weekday == 4:  # Friday
+        if isinstance(session_date, datetime.datetime) and session_date.hour >= 23:
+            # After market close on Friday, use next Monday
+            days_to_add = 3
+        else:
+            # Before market close on Friday, use today
+            days_to_add = 0
+    # If it's Saturday, use next Monday (add 2 days)
+    elif weekday == 5:  # Saturday
+        days_to_add = 2
+    # If it's Sunday, use next Monday (add 1 day)
+    elif weekday == 6:  # Sunday
+        days_to_add = 1
+    # For any other day, use the current date
+    else:
+        days_to_add = 0
+    
+    next_trading_day = current_date + datetime.timedelta(days=days_to_add)
+    return next_trading_day.strftime("%Y%m%d")
 
 @anvil.server.callable
 @anvil.server.background_task
@@ -293,15 +320,37 @@ def optimize_latest_newsletter():
     and generates analysis data using spaCy-based components.
     """
     print("Starting optimize_latest_newsletter background task")
+    
+    # Generate the newsletter_id for today
+    newsletter_id = get_newsletter_id()
+    
+    # Check if we already have analysis in either table for this newsletter_id
+    existing_analysis = list(app_tables.newsletteranalysis.search(newsletter_id=newsletter_id))
+    existing_optimized = list(app_tables.newsletteroptimized.search(newsletter_id=newsletter_id))
+    if existing_analysis or existing_optimized:
+        print(f"Analysis already exists for newsletter_id {newsletter_id}. Stopping optimization.")
+        return "Duplicate analysis prevented."
+    
     # Fetch all newsletters and sort locally by descending timestamp
     newsletters = list(app_tables.newsletters.search())
-    if newsletters:
-        newsletters = sorted(newsletters, key=lambda r: r['timestamp'], reverse=True)
-        latest = newsletters[0]
-        subject = latest['newslettersubject']
-        body = latest['newsletterbody']
-        print('Fetched newsletter with subject:', subject)
+    if not newsletters:
+        print('No newsletters found for optimization.')
+        return None
+        
+    newsletters = sorted(newsletters, key=lambda r: r['timestamp'], reverse=True)
+    latest = newsletters[0]
+    subject = latest['newslettersubject']
+    body = latest['newsletterbody']
+    
+    # Double check that this newsletter hasn't been processed
+    if latest['newsletter_id'] != newsletter_id:
+        print(f"Newsletter ID mismatch. Expected {newsletter_id}, found {latest['newsletter_id']}. Stopping optimization.")
+        return "Newsletter ID mismatch."
+        
+    print('Fetched newsletter with subject:', subject)
+    print(f'Processing newsletter_id: {newsletter_id}')
 
+    try:
         # Clean the text first
         cleaned_body = clean_text(body)
         
@@ -315,36 +364,8 @@ def optimize_latest_newsletter():
         
         # Get trade plan from semantically chunked sections
         trade_plan_text = sections.get('trade_plan', '')
-        
-        # Generate the newsletter_id using the helper function
-        newsletter_id = get_newsletter_id()
 
-        # Get or create the row in newsletteranalysis table
-        rows = list(app_tables.newsletteranalysis.search(newsletter_id=newsletter_id))
-        if rows:
-            row = rows[0]
-            row['originallevels'] = formatted_levels
-            row['tradeplan'] = trade_plan_text
-            row['timestamp'] = datetime.datetime.now()
-        else:
-            # Try to get the row again after a short delay in case another process just created it
-            time.sleep(0.5)  # Wait half a second
-            rows = list(app_tables.newsletteranalysis.search(newsletter_id=newsletter_id))
-            if rows:
-                row = rows[0]
-                row['originallevels'] = formatted_levels
-                row['tradeplan'] = trade_plan_text
-                row['timestamp'] = datetime.datetime.now()
-            else:
-                # If still no row exists, create a new one
-                app_tables.newsletteranalysis.add_row(
-                    newsletter_id=newsletter_id,
-                    originallevels=formatted_levels,
-                    tradeplan=trade_plan_text,
-                    timestamp=datetime.datetime.now()
-                )
-        
-        # Write to the newsletteroptimized table with newsletter_id
+        # First add to newsletteroptimized to ensure we have the complete data
         app_tables.newsletteroptimized.add_row(
             newsletter_id=newsletter_id,
             keylevels=formatted_levels,
@@ -355,26 +376,29 @@ def optimize_latest_newsletter():
             trade_recap=sections.get('trade_recap', ''),
             timestamp=datetime.datetime.now()
         )
+        print(f"Added row to newsletteroptimized for {newsletter_id}")
+
+        # Then add to newsletteranalysis
+        app_tables.newsletteranalysis.add_row(
+            newsletter_id=newsletter_id,
+            originallevels=formatted_levels,
+            tradeplan=trade_plan_text,
+            timestamp=datetime.datetime.now()
+        )
+        print(f"Added row to newsletteranalysis for {newsletter_id}")
         
-        # Extract additional analysis data
-        key_levels = extract_key_levels(cleaned_body)
-        trade_setups = identify_trade_setups(cleaned_body)
-        risk_factors = calculate_risk_factors(cleaned_body)
-
-        optimized_data = {
-            "newslettersubject": subject,
-            "original_body": body,
-            "cleaned_body": cleaned_body,
-            "sections": sections,
-            "key_levels": key_levels,
-            "trade_setups": trade_setups,
-            "risk_factors": risk_factors,
-            "trade_plan": trade_plan_text
-        }
-
-        print("Optimized newsletter data:", optimized_data)
-        print("Returning optimized result with subject:", subject)
-        return optimized_data
-    else:
-        print('No newsletters found for optimization.')
-        return None
+        print(f"Successfully optimized newsletter {newsletter_id}")
+        return "Newsletter optimization completed successfully."
+        
+    except Exception as e:
+        print(f"Error during optimization: {str(e)}")
+        # If we encounter an error, we should clean up any partial updates
+        try:
+            # Remove any rows we might have added before the error
+            for row in app_tables.newsletteroptimized.search(newsletter_id=newsletter_id):
+                row.delete()
+            for row in app_tables.newsletteranalysis.search(newsletter_id=newsletter_id):
+                row.delete()
+        except:
+            pass
+        raise  # Re-raise the original error

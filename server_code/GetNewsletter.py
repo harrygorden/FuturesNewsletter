@@ -87,12 +87,39 @@ def get_gmail_service():
 
 def get_newsletter_id(session_date=None):
     """
-    Generates a newsletter ID in yyyymmdd format.
+    Generates a newsletter ID in yyyymmdd format for the next trading day.
     If session_date is not provided, it uses the current date.
+    Returns Monday's date when run on Friday after market close (23:00), Saturday, or Sunday.
     """
     if session_date is None:
         session_date = datetime.datetime.now()
-    return session_date.strftime("%Y%m%d")
+    
+    # Convert to just date if datetime
+    current_date = session_date.date() if isinstance(session_date, datetime.datetime) else session_date
+    
+    # Get the day of week (0=Monday, 6=Sunday)
+    weekday = current_date.weekday()
+    
+    # If it's Friday and before market close, use next trading day (Monday)
+    if weekday == 4:  # Friday
+        if isinstance(session_date, datetime.datetime) and session_date.hour >= 23:
+            # After market close on Friday, use next Monday
+            days_to_add = 3
+        else:
+            # Before market close on Friday, use today
+            days_to_add = 0
+    # If it's Saturday, use next Monday (add 2 days)
+    elif weekday == 5:  # Saturday
+        days_to_add = 2
+    # If it's Sunday, use next Monday (add 1 day)
+    elif weekday == 6:  # Sunday
+        days_to_add = 1
+    # For any other day, use the current date
+    else:
+        days_to_add = 0
+    
+    next_trading_day = current_date + datetime.timedelta(days=days_to_add)
+    return next_trading_day.strftime("%Y%m%d")
 
 def _get_latest_newsletter():
     """Synchronous helper function to retrieve the newsletter."""
@@ -129,43 +156,43 @@ def _get_latest_newsletter():
         subject = next(h['value'] for h in headers if h['name'].lower() == 'subject')
         date = next(h['value'] for h in headers if h['name'].lower() == 'date')
 
-        # Extract body
-        body = find_body(msg['payload'])
-
-        if body is None:
-            print("Could not extract email body")
-            return None
-
-        newsletter_content = {
-            'subject': subject,
-            'body': body,
-            'date': date
-        }
-
-        # Check if the retrieved email is a duplicate based on the subject
+        # Check for duplicates BEFORE processing the email body
         latest_rows = list(app_tables.newsletters.search())
         if latest_rows:
             latest = sorted(latest_rows, key=lambda row: row['timestamp'], reverse=True)[0]
             if latest['newslettersubject'] == subject:
-                print("Duplicate email. Latest email subject matches the retrieved email subject. Aborting retrieval.")
-                return None
+                print("Duplicate email detected. Latest email subject matches the retrieved email subject.")
+                print("Stopping all processing to prevent duplicate entries.")
+                return "DUPLICATE"
+
+        # Extract body only if not a duplicate
+        body = find_body(msg['payload'])
+        if body is None:
+            print("Could not extract email body")
+            return None
 
         try:
             news_timestamp = parsedate_to_datetime(date)
         except Exception as e:
             print("Error parsing date, storing raw date string:", e)
             news_timestamp = date
+
         newsletter_id = get_newsletter_id()
         app_tables.newsletters.add_row(
-                                         newsletter_id=newsletter_id,
-                                         timestamp=news_timestamp,
-                                         newslettersubject=subject,
-                                         newsletterbody=body)
+            newsletter_id=newsletter_id,
+            timestamp=news_timestamp,
+            newslettersubject=subject,
+            newsletterbody=body
+        )
         print("Newsletter row inserted into app_tables.newsletters")
-        print("Newsletter content being returned: ")
-        print(f"Found email with subject: {subject}")
-        print("Newsletter content successfully extracted")
-        return newsletter_content
+        print("Newsletter content being returned")
+        
+        return {
+            'subject': subject,
+            'body': body,
+            'date': date
+        }
+
     except Exception as e:
         print("Error retrieving newsletter: " + str(e))
         raise
@@ -177,6 +204,9 @@ def get_latest_newsletter():
     if result is None:
         print("No new newsletter found.")
         return "No new newsletter to process."
+    elif result == "DUPLICATE":
+        print("Duplicate newsletter detected, stopping all processing.")
+        return "Duplicate newsletter detected."
     else:
         print("Newsletter processed successfully.")
         # Chain the optimization task after successful retrieval
