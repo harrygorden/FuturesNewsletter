@@ -10,19 +10,8 @@ import datetime
 
 def process_market_events(newsletter_id):
     """
-    Processes market events for a given newsletter by converting the newsletter_id 
-    (in YYYYMMDD format) to YYYY-MM-DD, searching the marketcalendar table for events
-    on that date, and updating the newsletteranalysis table's MarketEvents field with
-    the event times and names formatted as:
-
-    7:30AM          Event Name 1
-    7:30AM          Event Name 2
-    9:00AM          Event Name 3
+    Processes market events for a given newsletter and updates the newsletteranalysis table.
     """
-    # Validate newsletter_id format
-    if len(newsletter_id) != 8:
-         raise ValueError("newsletter_id must be in YYYYMMDD format")
-         
     # Convert newsletter_id to YYYY-MM-DD format
     event_date = f"{newsletter_id[:4]}-{newsletter_id[4:6]}-{newsletter_id[6:]}"
     
@@ -31,41 +20,14 @@ def process_market_events(newsletter_id):
     
     events_text = ""
     if events:
-         for event in events:
-             # Assuming marketcalendar table has 'time' and 'eventname' columns.
-             event_time = event['time']
-             event_name = event['event']
-             
-             # Format event_time if it's a time object. Remove leading zero for hour if present.
-             if hasattr(event_time, 'strftime'):
-                 event_time_str = event_time.strftime("%I:%M%p").lstrip("0")
-             else:
-                 event_time_str = str(event_time)
-             
-             # Append formatted line with padded time
-             events_text += f"{event_time_str:<15}{event_name}\n"
-         events_text = events_text.rstrip("\n")
-    else:
-         events_text = ""
-         
-    # Get or create the row in newsletteranalysis table
-    rows = list(app_tables.newsletteranalysis.search(newsletter_id=newsletter_id))
-    if rows:
-         row = rows[0]
-         row['MarketEvents'] = events_text
-    else:
-         # Try to get the row again after a short delay in case another process just created it
-         time.sleep(0.5)  # Wait half a second
-         rows = list(app_tables.newsletteranalysis.search(newsletter_id=newsletter_id))
-         if rows:
-             row = rows[0]
-             row['MarketEvents'] = events_text
-         else:
-             # If still no row exists, create a new one with just the MarketEvents field
-             app_tables.newsletteranalysis.add_row(
-                  newsletter_id=newsletter_id,
-                  MarketEvents=events_text,
-                  timestamp=datetime.datetime.now()  # Add timestamp to match other processes
-             )
+        events_text = "\n".join(
+            f"{event['time'].strftime('%I:%M%p').lstrip('0'):<15}{event['event']}"
+            for event in sorted(events, key=lambda x: x['time'])
+        )
     
-    return f"Processed market events for newsletter_id {newsletter_id}"
+    # Update the existing analysis row
+    analysis_row = app_tables.newsletteranalysis.get(newsletter_id=newsletter_id)
+    if analysis_row:
+        analysis_row['MarketEvents'] = events_text
+    
+    return events_text

@@ -7,6 +7,7 @@ import anvil.secrets
 import anvil.server
 import anvil.users
 import anvil.tables
+import datetime
 
 # This is the main orchestration module for the Futures Newsletter Analysis application.
 # It coordinates the entire workflow of retrieving, analyzing, and sending newsletter analyses.
@@ -44,38 +45,51 @@ import anvil.tables
 def process_newsletter():
     """
     Main orchestration function that coordinates the entire newsletter processing workflow.
-    Retrieves the newsletter and then optimizes it.
-    
-    Returns:
-        dict: Status of the operation and any relevant data
+    Ensures sequential processing and data consistency across all steps.
     """
     print("Starting newsletter processing workflow")
     
     try:
-        from . import GetNewsletter, OptimizeNewsletter, MarketEvents
+        from . import GetNewsletter, OptimizeNewsletter, MarketEvents, utils
         
+        # Step 1: Get newsletter_id for this session
+        newsletter_id = utils.get_newsletter_id()
+        print(f"Processing newsletter for ID: {newsletter_id}")
+        
+        # Step 2: Retrieve newsletter
         print("Step 1: Initiating newsletter retrieval")
-        # Launch newsletter retrieval as a background task and wait for it
-        retrieval_result = anvil.server.launch_background_task('get_latest_newsletter')
+        retrieval_result = GetNewsletter._get_latest_newsletter()
         
-        if retrieval_result == "No new newsletter to process.":
-            print("No new newsletter found to process")
+        if retrieval_result is None:
             return {
                 'status': 'success',
                 'message': "No new newsletter to process"
             }
-        
-        # Get today's newsletter_id using the same method as GetNewsletter
-        newsletter_id = GetNewsletter.get_newsletter_id()
+        elif retrieval_result == "DUPLICATE":
+            return {
+                'status': 'success',
+                'message': "Duplicate newsletter detected"
+            }
             
-        # Process market events for this newsletter
+        # Step 3: Initialize analysis record
+        analysis_row = app_tables.newsletteranalysis.add_row(
+            newsletter_id=newsletter_id,
+            timestamp=datetime.datetime.now()
+        )
+            
+        # Step 4: Process market events
         print("Step 2: Processing market events")
-        anvil.server.launch_background_task('process_market_events', newsletter_id)
+        market_events = MarketEvents.process_market_events(newsletter_id)
+            
+        # Step 5: Optimize newsletter content
+        print("Step 3: Optimizing newsletter content")
+        optimization_result = OptimizeNewsletter.optimize_latest_newsletter(newsletter_id)
             
         print("Newsletter processing completed")
         return {
             'status': 'success',
-            'message': retrieval_result
+            'message': "Newsletter processing complete",
+            'newsletter_id': newsletter_id
         }
             
     except Exception as e:

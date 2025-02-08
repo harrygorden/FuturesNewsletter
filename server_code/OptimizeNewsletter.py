@@ -313,92 +313,46 @@ def get_newsletter_id(session_date=None):
     return next_trading_day.strftime("%Y%m%d")
 
 @anvil.server.callable
-@anvil.server.background_task
-def optimize_latest_newsletter():
-    """Background task to optimize the latest extracted email newsletter.
-    It fetches the newsletter with the most recent timestamp, cleans and segments the text,
-    and generates analysis data using spaCy-based components.
+def optimize_latest_newsletter(newsletter_id):
     """
-    print("Starting optimize_latest_newsletter background task")
+    Optimizes the newsletter content and updates relevant tables.
+    Now requires newsletter_id parameter for consistency.
+    """
+    print(f"Starting optimization for newsletter {newsletter_id}")
     
-    # Generate the newsletter_id for today
-    newsletter_id = get_newsletter_id()
+    # Get the newsletter content
+    newsletter = app_tables.newsletters.get(newsletter_id=newsletter_id)
+    if not newsletter:
+        raise ValueError(f"No newsletter found for ID {newsletter_id}")
     
-    # Check if we already have analysis in either table for this newsletter_id
-    existing_analysis = list(app_tables.newsletteranalysis.search(newsletter_id=newsletter_id))
-    existing_optimized = list(app_tables.newsletteroptimized.search(newsletter_id=newsletter_id))
-    if existing_analysis or existing_optimized:
-        print(f"Analysis already exists for newsletter_id {newsletter_id}. Stopping optimization.")
-        return "Duplicate analysis prevented."
+    # Clean and process the content
+    cleaned_body = clean_text(newsletter['newsletterbody'])
+    sections = get_newsletter_sections(cleaned_body)
     
-    # Fetch all newsletters and sort locally by descending timestamp
-    newsletters = list(app_tables.newsletters.search())
-    if not newsletters:
-        print('No newsletters found for optimization.')
-        return None
-        
-    newsletters = sorted(newsletters, key=lambda r: r['timestamp'], reverse=True)
-    latest = newsletters[0]
-    subject = latest['newslettersubject']
-    body = latest['newsletterbody']
-    
-    # Double check that this newsletter hasn't been processed
-    if latest['newsletter_id'] != newsletter_id:
-        print(f"Newsletter ID mismatch. Expected {newsletter_id}, found {latest['newsletter_id']}. Stopping optimization.")
-        return "Newsletter ID mismatch."
-        
-    print('Fetched newsletter with subject:', subject)
-    print(f'Processing newsletter_id: {newsletter_id}')
+    # Extract and format levels
+    core_levels = sections.get('core_levels', '')
+    formatted_levels = format_preserved_levels(core_levels)
+    raw_levels = format_keylevels_raw(formatted_levels)
+    trade_plan_text = sections.get('trade_plan', '')
 
-    try:
-        # Clean the text first
-        cleaned_body = clean_text(body)
-        
-        # Use semantic chunking to extract sections
-        sections = get_newsletter_sections(cleaned_body)
-        
-        # Extract key levels from the core levels section
-        core_levels = sections.get('core_levels', '')
-        formatted_levels = format_preserved_levels(core_levels)
-        raw_levels = format_keylevels_raw(formatted_levels)
-        
-        # Get trade plan from semantically chunked sections
-        trade_plan_text = sections.get('trade_plan', '')
-
-        # First add to newsletteroptimized to ensure we have the complete data
-        app_tables.newsletteroptimized.add_row(
-            newsletter_id=newsletter_id,
-            keylevels=formatted_levels,
-            keylevelsraw=raw_levels,
-            tradeplan=trade_plan_text,
-            optimized_content=cleaned_body,
-            core_levels=sections.get('core_levels', ''),
-            trade_recap=sections.get('trade_recap', ''),
-            timestamp=datetime.datetime.now()
-        )
-        print(f"Added row to newsletteroptimized for {newsletter_id}")
-
-        # Then add to newsletteranalysis
-        app_tables.newsletteranalysis.add_row(
-            newsletter_id=newsletter_id,
+    # Update the existing analysis row
+    analysis_row = app_tables.newsletteranalysis.get(newsletter_id=newsletter_id)
+    if analysis_row:
+        analysis_row.update(
             originallevels=formatted_levels,
-            tradeplan=trade_plan_text,
-            timestamp=datetime.datetime.now()
+            tradeplan=trade_plan_text
         )
-        print(f"Added row to newsletteranalysis for {newsletter_id}")
-        
-        print(f"Successfully optimized newsletter {newsletter_id}")
-        return "Newsletter optimization completed successfully."
-        
-    except Exception as e:
-        print(f"Error during optimization: {str(e)}")
-        # If we encounter an error, we should clean up any partial updates
-        try:
-            # Remove any rows we might have added before the error
-            for row in app_tables.newsletteroptimized.search(newsletter_id=newsletter_id):
-                row.delete()
-            for row in app_tables.newsletteranalysis.search(newsletter_id=newsletter_id):
-                row.delete()
-        except:
-            pass
-        raise  # Re-raise the original error
+    
+    # Create optimized content record
+    app_tables.newsletteroptimized.add_row(
+        newsletter_id=newsletter_id,
+        keylevels=formatted_levels,
+        keylevelsraw=raw_levels,
+        tradeplan=trade_plan_text,
+        optimized_content=cleaned_body,
+        core_levels=sections.get('core_levels', ''),
+        trade_recap=sections.get('trade_recap', ''),
+        timestamp=datetime.datetime.now()
+    )
+    
+    return "Newsletter optimization completed successfully"
