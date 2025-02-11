@@ -130,7 +130,7 @@ secrets:
     value: {PH22AA44KODTF2P7: DL+MfoTGBKh1Uq3qEUeTvUACvEvuUTdI5geHx0rc2+O0JhitL1hGeS7OtEyTE3L3v/OL0VMGxai2zVdxnVbzuqRnmxnUj9ggrgBgJDDdsPN8gjgmJkSl/haOAdOwBQHBUu35UUZBcbw+1EoxMGpxHdf4DEGRaie+PYh7S6H5T3r1Hg==}
   google_refresh_token:
     type: secret
-    value: {PH22AA44KODTF2P7: FA5C2h/QJg7m7zK1q4lBHRPVU1fGN7GeAxTzcKBVmDj6m+YwqqkeClZxpTsgsJYTchE93OZ9bh5L9c0AsCI10kFjsyZZ7faxm5TtD24JidcPM8VYNyTO+vH2LVfCvPRCrHUn7zuHK+OxbNMS4x/vc9Vh7inU2X7DJCzTkMpdbKUg0kfm9MgWisxeIQIQ2LR6YrDaj4SFSfYfb23nmQo5v6SaLbyz+0KHz8oBvVaGAFN3I3qWMSZeWHtbmoJ113BBUhzWStW5vJE=}
+    value: {PH22AA44KODTF2P7: f4TXPrpdYYj/kdRdq0c6480KkbYAoXIdUrkQJMeCzd2itGhNzaCUbUowag0lDKl4QSPPWx21lgt22lpoyXdJjmed6NwdR2rmyc5Y5ojLRSX86zoZiNxOGKfekF23+PePxtJIawyM2E3UvoqC/GONb9XscexJBzFyJAVyQPaO1GD0KB63GebOh5V/Jbx4awLNfrTxWFpgp9dWZs0jlcsg3RrMhnhMF+JZbNq0QAuJmMXjBsKeAEIOKypjjV8Dqs5cifWWinIZuf8=}
   newsletter_sender_email:
     type: secret
     value: {PH22AA44KODTF2P7: xhSJBTVit2JSEzvQoYRFE8uW+Pv0t40LYe7c6bH8rm70nx0a89TegZYGcHcDkpfVZm+Mv8MmK+PyUyLRbkAgKVFFXMaVAONSdJA2+zIjKcwZBiGacmAAERVz4yovkM15itR1/wNFgLwKee4Umkt+6Aj0UVRKH1kWmLg=}
