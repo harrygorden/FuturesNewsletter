@@ -5,3 +5,6 @@ __pycache__
 source_data*
 db_tools*
 .env
+client_secrets.json
+Uplink_Connect.py
+token.json
