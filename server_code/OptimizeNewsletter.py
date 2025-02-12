@@ -218,30 +218,21 @@ def semantic_section_chunker(doc):
     # First find the trade plan section as it will be used as a boundary
     if doc._.trading_day:  # Only proceed if we have the trading day information
         print(f"\nLooking for trade plan section for {doc._.trading_day}")
-        
-        # First, let's find all instances of "Trade Plan Monday" to see the context
-        plan_day_pattern = fr'(?:^|\n|\r\n)\s*Trade Plan\s+{doc._.trading_day}'
-        plan_day_matches = list(re.finditer(plan_day_pattern, doc.text, re.IGNORECASE | re.MULTILINE))
+        plan_day_pattern = fr"Trade Plan\s*[:\-]?\s*{doc._.trading_day}"
+        plan_day_matches = list(re.finditer(plan_day_pattern, doc.text, re.IGNORECASE))
         if plan_day_matches:
             print(f"\nFound {len(plan_day_matches)} instances of 'Trade Plan {doc._.trading_day}':")
-            for match in plan_day_matches:
-                start = max(0, match.start() - 50)
-                end = min(len(doc.text), match.end() + 50)
-                print(f"\nMatch at position {match.start()}:")
-                print(f"...{doc.text[start:end]}...")
-                
-                # Try to extract the trade plan section from this match
-                section_start = match.start()
-                section_text = doc.text[section_start:]
-                summary_match = re.search(r'In summary for.*?(?=\s*As always no crystal balls|\n\n|\Z)', 
-                                        section_text, re.IGNORECASE | re.DOTALL)
-                if summary_match:
-                    trade_plan_start = section_start
-                    doc._.sections['trade_plan'] = doc.text[section_start:section_start + summary_match.end()].strip()
-                    print(f"Found complete trade plan section starting at position {trade_plan_start}")
-                    print("\nFirst 100 chars of matched text:")
-                    print(doc._.sections['trade_plan'][:100] + "...")
-                    break
+            match = plan_day_matches[0]
+            section_start = match.start()
+            # Look for the next header from a list of known section headers
+            next_header_pattern = r"\n\s*(?:Trade Recap|Trading Recap|Trade Education|Core Structures|Levels to Engage)\b"
+            next_header_match = re.search(next_header_pattern, doc.text[section_start:], re.IGNORECASE)
+            if next_header_match:
+                section_end = section_start + next_header_match.start()
+            else:
+                section_end = len(doc.text)
+            doc._.sections['trade_plan'] = doc.text[section_start:section_end].strip()
+            print(f"Extracted trade_plan section, length: {len(doc._.sections['trade_plan'])} chars")
         else:
             print(f"No instances of 'Trade Plan {doc._.trading_day}' found!")
     
@@ -378,8 +369,8 @@ def optimize_latest_newsletter(newsletter_id):
         print("No trade plan text found in the newsletter")
 
     # Update the existing analysis row
-    analysis_row = app_tables.newsletteranalysis.get(newsletter_id=newsletter_id)
-    if analysis_row:
+    analysis_rows = app_tables.newsletteranalysis.search(newsletter_id=newsletter_id)
+    for analysis_row in analysis_rows:
         analysis_row.update(
             originallevels=formatted_levels,
             tradeplan=trade_plan_text
